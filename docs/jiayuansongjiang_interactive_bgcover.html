@@ -1,15 +1,25 @@
-
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>佳元松江社區 互動樓層外觀看板（自適應背景圖）</title>
+  <title>佳元松江社區 互動樓層外觀看板（優化版）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
+    /* 使用者提供的原始樣式，經過微調以適應動態內容 */
     html, body {
-      margin:0; padding:0;
-      background: #f5f6fa;
+      margin: 0; padding: 0;
+      background: #eef2f8; /* 柔和的背景色 */
       font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif;
+      overflow-x: hidden; /* 避免水平捲軸 */
+    }
+    #three-bg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        opacity: 0.8;
     }
     .bldg-bg-wrap {
       width: 96vw;
@@ -22,100 +32,209 @@
       box-shadow: 0 2px 18px #0003; border-radius: 18px;
     }
     .bldg-overlay {
-      position: absolute; left:0; top:0; width:100%; height:100%;
-      pointer-events:none;
+      position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+      pointer-events: none;
     }
     .floor-zone {
-      position: absolute; left:0; width:100%;
-      opacity:0.08; background: #26c6da; border-radius: 10px;
+      position: absolute; left: 0; width: 100%;
+      opacity: 0.08; background: #26c6da; border-radius: 10px;
       pointer-events: auto;
       cursor: pointer;
       transition: opacity .15s;
       border: 2px solid transparent;
     }
     .floor-zone.active, .floor-zone:hover {
-      opacity:0.16; border: 2px solid #0288d1;
+      opacity: 0.16; border: 2px solid #0288d1;
     }
     .floor-label {
-      position: absolute; left:10px;
-      font-size: max(1.5vw,16px);
-      color: #222; font-weight: bold; text-shadow:0 1px 7px #fff8;
-      z-index: 10; pointer-events:none;
+      position: absolute; left: 10px;
+      font-size: max(1.5vw, 16px);
+      color: #222; font-weight: bold; text-shadow: 0 1px 7px #fff8;
+      z-index: 10; pointer-events: none;
     }
-    @media (max-width:700px) {
-      .bldg-bg-wrap { width:98vw; max-width:98vw; }
-      .floor-label { font-size: max(3vw,14px); left:6px; }
+    @media (max-width: 700px) {
+      .bldg-bg-wrap { width: 98vw; max-width: 98vw; }
+      .floor-label { font-size: max(3vw, 14px); left: 6px; }
     }
     .floor-section { margin: 24px 0 0 0; }
+    .floor-title {
+        font-size: 24px;
+        font-weight: bold;
+        text-align: center;
+        color: #000; /* 強化標題顏色為黑色 */
+        margin: 0 0 16px 0;
+    }
     .unit-row-wrap { overflow-x: auto; padding-bottom: 7px; }
-    .unit-row { display: flex; gap: 13px; min-width: 330px; }
-    .unit-card { min-width: 196px; max-width: 216px; background: #fff; border-radius: 18px; box-shadow: 0 2px 8px #0002;
-      padding: 10px 14px 8px 14px; display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 0; transition: box-shadow .2s; position: relative;}
-    .unit-card:hover { box-shadow: 0 4px 18px #0003;}
-    .status-tag { display: inline-block; font-size: 14px; font-weight: 600; color: #fff; border-radius: 13px; padding: 2px 13px 3px 13px; margin-bottom: 7px; letter-spacing: 2px;}
-    .unit-header { font-size: 19px; font-weight: bold; margin-bottom: 2px; color: #2d3a4b;}
-    .owner-label { font-size: 15px; color: #333; margin-bottom: 2px;}
-    .resident-label { font-size: 14px; color: #888; margin-bottom: 5px;}
-    .row { font-size: 13px; color: #444; margin-bottom: 3px;}
-    .details { display: none; margin-top: 6px; border-top: 1px dashed #c0c0c0; padding-top: 7px;}
-    .toggle-btn { background: #e0e0e0; color: #333; border: none; border-radius: 12px; font-size: 12px;
-      padding: 3px 10px; margin-top: 4px; cursor: pointer; transition: background .15s;}
-    .toggle-btn:active { background: #bdbdbd;}
+    .unit-row { 
+        display: flex; gap: 13px; 
+        min-width: 330px; 
+        padding: 0 2vw; 
+        box-sizing: border-box; 
+    }
+    .unit-card { 
+        flex: 1 1 200px; /* 讓卡片更具彈性 */
+        background: #fff; border-radius: 18px; 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1); /* 調整陰影更柔和 */
+        padding: 16px; /* 增加內距 */
+        display: flex; flex-direction: column; 
+        align-items: flex-start; 
+        margin-bottom: 0; 
+        transition: box-shadow .2s, transform 0.3s ease-out; /* 新增 transform 過渡效果 */
+        position: relative;
+    }
+    .unit-card:hover { 
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15); 
+        transform: translateY(-5px); /* 滑鼠移入時卡片上浮 */
+    } 
+    .status-tag { 
+        display: inline-block; 
+        font-size: 14px; font-weight: 600; 
+        color: #fff; border-radius: 13px; 
+        padding: 2px 13px 3px 13px; 
+        margin-bottom: 7px; letter-spacing: 2px;
+        transition: opacity 0.5s ease-in-out; /* 新增淡入動畫 */
+    }
+    .unit-header { 
+        font-size: 19px; font-weight: bold; 
+        margin-bottom: 2px; color: #2d3a4b; 
+        transition: opacity 0.5s ease-in-out;
+    }
+    .owner-label { 
+        font-size: 15px; color: #333; 
+        margin-bottom: 2px; 
+        transition: opacity 0.5s ease-in-out;
+    }
+    .resident-label { 
+        font-size: 14px; color: #888; 
+        margin-bottom: 5px; 
+        transition: opacity 0.5s ease-in-out;
+    }
+    .row { 
+        font-size: 13px; color: #444; 
+        margin-bottom: 3px; 
+        transition: opacity 0.5s ease-in-out;
+    }
+    .details { 
+        display: none; 
+        margin-top: 10px; /* 增加間距 */
+        border-top: 1px dashed #d1d1d1; /* 調整虛線顏色 */
+        padding-top: 10px; 
+        overflow: hidden;
+        transition: max-height 0.3s ease-in-out; /* 新增動畫效果 */
+    }
+    .toggle-btn { 
+        background: #f0f4f8; /* 淺灰色按鈕背景 */
+        color: #555; 
+        border: 1px solid #ccc; /* 增加按鈕邊框 */
+        border-radius: 20px; /* 圓角更大 */
+        font-size: 13px;
+        padding: 6px 16px; /* 增加內距 */
+        margin-top: 8px; /* 增加上邊距 */
+        cursor: pointer; 
+        transition: all .2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .toggle-btn:hover {
+        background: #e0e5ea;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .toggle-btn:active { background: #d0d5dc; }
+    /* 卡片進場動畫 */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .unit-card {
+        animation: fadeIn 0.5s ease-out forwards;
+    }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-  <h2 style="text-align:center;margin-bottom:8px;margin-top:8px;">佳元松江社區 互動樓層外觀看板</h2>
+  <div id="three-bg"></div>
+  <h2 style="text-align:center;margin-bottom:8px;margin-top:8px;position:relative;color:#000;text-shadow:0 0 10px #fff;">佳元松江社區 互動樓層外觀看板</h2>
   <div class="bldg-bg-wrap" id="bldgWrap">
     <div class="bldg-overlay" id="bldgOverlay"></div>
   </div>
   <div id="floordatawrap">
     <div class="floor-section">
-      <div class="floor-title" id="currentfloor">10 樓</div>
-      <div class="unit-row-wrap"><div class="unit-row" id="floorunits">
-    <div class="unit-card">
-      <div class="status-tag" style="background:#fb8c00">已開工</div>
-      <div class="unit-header">10A-10樓</div>
-      <div class="owner-label">所有權人：蔡政隆</div>
-      <div class="resident-label">居住人：尚未登記</div>
-      
-      <div class="row">狀態：未驗收</div>
-      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>
-      <div class="details">
-        <div class="row">裝修公司：質采室內裝修</div>
-        <div class="row">裝修人電話：0289518898</div>
-        <div class="row">開工日：2025-07-21</div>
-        <div class="row">預計完工：2025-11-28</div>
-        <div class="row">驗退日期：尚未登記</div>
-        <div class="row">門牌地址：松江路252巷10號10樓</div>
-      </div>
-    </div>
-    
-    <div class="unit-card">
-      <div class="status-tag" style="background:#fb8c00">已開工</div>
-      <div class="unit-header">10B-10樓</div>
-      <div class="owner-label">所有權人：梁本郁</div>
-      <div class="resident-label">居住人：尚未登記</div>
-      <div class='row'>車位：B2-05</div>
-      <div class="row">狀態：未驗收</div>
-      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>
-      <div class="details">
-        <div class="row">裝修公司：優舍  高宇賢</div>
-        <div class="row">裝修人電話：0922311253</div>
-        <div class="row">開工日：2025-06-23</div>
-        <div class="row">預計完工：尚未登記</div>
-        <div class="row">驗退日期：尚未登記</div>
-        <div class="row">門牌地址：松江路252巷10號10樓之1</div>
-      </div>
-    </div>
-    </div></div>
+      <div class="floor-title" id="currentfloor"></div>
+      <div class="unit-row-wrap"><div class="unit-row" id="floorunits"></div></div>
     </div>
   </div>
   <script>
-    // 自動根據容器高度計算所有熱區座標，百分比自適應
+    // =========================================================================
+    // 資料維護區塊 (Data Maintenance Section)
+    //
+    // 未來如果要更新住戶的資料，只需要修改下方這個 `allUnitData` 陣列即可。
+    // 這個陣列中的每個物件都代表一個住戶單元。
+    //
+    // To update resident information in the future, you only need to modify 
+    // the `allUnitData` array below. Each object in this array represents 
+    // a single residential unit.
+    // =========================================================================
+    const allUnitData = [
+      { "戶別": "10A-10樓", "所有權人": "蔡政隆", "居住人": "尚未登記", "裝修公司": "質采室內裝修", "裝修人電話": "0289518898", "開工日": "2025/07/21", "預計完工": "2025-11-28", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號10樓" },
+      { "戶別": "10B-10樓", "所有權人": "梁本郁", "居住人": "尚未登記", "裝修公司": "優舍  高宇賢", "裝修人電話": "0922311253", "開工日": "2025/06/23", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2-05", "門牌地址": "松江路252巷10號10樓之1" },
+      { "戶別": "9A-9樓", "所有權人": "黃雅玲", "居住人": "尚未登記", "裝修公司": "玳爾室內設計", "裝修人電話": "0953627927", "開工日": "2025/06/18", "預計完工": "2025-10-22", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2/13", "門牌地址": "松江路252巷10號9樓" },
+      { "戶別": "9B-9樓", "所有權人": "張美華", "居住人": "尚未登記", "裝修公司": "楊智斌", "裝修人電話": "尚未登記", "開工日": "2025/07/08", "預計完工": "2025-09-30", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2-09", "門牌地址": "松江路252巷10號9樓之1" },
+      { "戶別": "8A-8樓", "所有權人": "黃誼僑", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "B2/08", "門牌地址": "松江路252巷10號8樓" },
+      { "戶別": "8B-8樓", "所有權人": "佘雪紅", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號8樓之1" },
+      { "戶別": "7A-7樓", "所有權人": "魏均穎", "居住人": "尚未登記", "裝修公司": "芬格室內裝修", "裝修人電話": "02-87878057", "開工日": "2025/06/25", "預計完工": "2025-08-15", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2/01", "門牌地址": "松江路252巷10號7樓" },
+      { "戶別": "7B-7樓", "所有權人": "尹衍嵐", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號7樓之1" },
+      { "戶別": "7C-7樓", "所有權人": "黃怡瑋", "居住人": "尚未登記", "裝修公司": "劉經寰", "裝修人電話": "0910228955", "開工日": "2025/03/30", "預計完工": "2025-05-31", "驗退日期": "2025-06-19", "驗退狀態": "已驗收（6月19日)", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號7樓之2" },
+      { "戶別": "7D-7樓", "所有權人": "李佳芳", "居住人": "歐家瑋", "裝修公司": "自裝簡裝", "裝修人電話": "02-88113300", "開工日": "2025/07/29", "預計完工": "2025-07-29", "驗退日期": "2025-07-29", "驗退狀態": "已驗收（7月29日)", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號7樓之3" },
+      { "戶別": "7E-7樓", "所有權人": "王楷皓", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號7樓之5" },
+      { "戶別": "7F-7樓", "所有權人": "游斯涵", "居住人": "尚未登記", "裝修公司": "鼎極室內裝修", "裝修人電話": "02-86681911", "開工日": "2025/07/10", "預計完工": "2025-09-05", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號7樓之6" },
+      { "戶別": "6A-6樓", "所有權人": "李苾琳", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號6樓" },
+      { "戶別": "6B-6樓", "所有權人": "莊春陽", "居住人": "尚未登記", "裝修公司": "莊春陽", "裝修人電話": "0932255349", "開工日": "2025/07/11", "預計完工": "尚未登記", "驗退日期": "2025-07-23", "驗退狀態": "已驗收（7月23日)", "施工狀態": "已開工", "車位": "B2-06", "門牌地址": "松江路252巷10號6樓之1" },
+      { "戶別": "6C-6樓", "所有權人": "蘇傳欽", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號6樓之2" },
+      { "戶別": "6D-6樓", "所有權人": "黃薇芝", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "B2-02", "門牌地址": "松江路252巷10號6樓之3" },
+      { "戶別": "6E-6樓", "所有權人": "兒玉勝行", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號6樓之5" },
+      { "戶別": "6F-6樓", "所有權人": "陳品妤", "居住人": "尚未登記", "裝修公司": "巢藝設計", "裝修人電話": "02-22760115", "開工日": "2025/07/23", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號6樓之6" },
+      { "戶別": "5A-5樓", "所有權人": "仇沛珊", "居住人": "尚未登記", "裝修公司": "黃韶瑋", "裝修人電話": "0988075121", "開工日": "2025/06/16", "預計完工": "2025-07-08", "驗退日期": "2025-07-09", "驗退狀態": "已驗收（7月9日)", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號5樓" },
+      { "戶別": "5B-5樓", "所有權人": "優舍室內裝修", "居住人": "尚未登記", "裝修公司": "優舍  高宇賢", "裝修人電話": "0922311253", "開工日": "2025/07/09", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號5樓之1" },
+      { "戶別": "5C-5樓", "所有權人": "王子嫣", "居住人": "尚未登記", "裝修公司": "曾士華", "裝修人電話": "0922819918", "開工日": "2025/07/01", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2-14", "門牌地址": "松江路252巷10號5樓之2" },
+      { "戶別": "5D-5樓", "所有權人": "張甄庭", "居住人": "尚未登記", "裝修公司": "曾士華", "裝修人電話": "0922819918", "開工日": "2025/06/24", "預計完工": "2025-07-29", "驗退日期": "2025-07-29", "驗退狀態": "已驗收（7月29日)", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號5樓之3" },
+      { "戶別": "5E-5樓", "所有權人": "劉禹秀", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "B2-07", "門牌地址": "松江路252巷10號5樓之5" },
+      { "戶別": "5F-5樓", "所有權人": "楊淑如", "居住人": "尚未登記", "裝修公司": "邱聖凱", "裝修人電話": "0936042827", "開工日": "2025/07/01", "預計完工": "2025-08-20", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號5樓之6" },
+      { "戶別": "4A-4樓", "所有權人": "蕭承昕", "居住人": "尚未登記", "裝修公司": "優舍  高宇賢", "裝修人電話": "0922311253", "開工日": "2025/07/02", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號4樓" },
+      { "戶別": "4B-4樓", "所有權人": "鄭美蘭", "居住人": "尚未登記", "裝修公司": "優舍  高宇賢", "裝修人電話": "0922311253", "開工日": "2025/07/02", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2-03", "門牌地址": "松江路252巷10號4樓之1" },
+      { "戶別": "4CD-4樓", "所有權人": "張雅婷", "居住人": "蔡資恆", "裝修公司": "蔡資恆", "裝修人電話": "0968081890", "開工日": "2025/08/04", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號4樓之2" },
+      { "戶別": "4EF-4樓", "所有權人": "李宛儒", "居住人": "尚未登記", "裝修公司": "李元亨", "裝修人電話": "0918391967", "開工日": "2025/06/25", "預計完工": "2025-09-30", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2-04", "門牌地址": "松江路252巷10號4樓之5" },
+      { "戶別": "3A-3樓", "所有權人": "張儷瑭", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號3樓" },
+      { "戶別": "3B-3樓", "所有權人": "張儷瑋", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號3樓之1" },
+      { "戶別": "3CD-3樓", "所有權人": "杜啓斌", "居住人": "尚未登記", "裝修公司": "宜荷室內裝修", "裝修人電話": "02-2727677", "開工日": "2025/03/12", "預計完工": "2025-04-25", "驗退日期": "2025-07-17", "驗退狀態": "已驗收（7月17日)", "施工狀態": "已開工", "車位": "B2-10", "門牌地址": "松江路252巷10號3樓之2" },
+      { "戶別": "3EF-3樓", "所有權人": "高慧雯", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號3樓之5" },
+      { "戶別": "2A-2樓", "所有權人": "許郅玫", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓" },
+      { "戶別": "2B-2樓", "所有權人": "湯蕙如", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓之1" },
+      { "戶別": "2C-2樓", "所有權人": "黃翎鈞", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓之2" },
+      { "戶別": "2D-2樓", "所有權人": "郭純純", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓之3" },
+      { "戶別": "2E-2樓", "所有權人": "林梓聖", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓之5" },
+      { "戶別": "2F-2樓", "所有權人": "魏慶龍", "居住人": "尚未登記", "裝修公司": "顧紋如", "裝修人電話": "0983182182", "開工日": "2025/06/04", "預計完工": "2025-07-05", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓之6" },
+      { "戶別": "1A-1樓", "所有權人": "之餘國際室內裝修工程有限公司", "居住人": "店面", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "B2/11", "門牌地址": "松江路252巷10號1樓" },
+      { "戶別": "1B-1樓", "所有權人": "之餘國際室內裝修工程有限公司", "居住人": "店面", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "B2-12", "門牌地址": "松江路252巷10號1樓" }
+    ];
+
+    // 將所有單元資料按樓層分組
+    // Group all unit data by floor
+    const floorUnits = allUnitData.reduce((acc, unit) => {
+      const floorMatch = unit["戶別"].match(/(\d+)/);
+      if (floorMatch) {
+        const floor = floorMatch[1];
+        if (!acc[floor]) {
+          acc[floor] = [];
+        }
+        acc[floor].push(unit);
+      }
+      return acc;
+    }, {});
+
+    // 動態繪製樓層熱區
+    // Dynamically draw floor hot zones
     const container = document.getElementById('bldgWrap');
     const overlay = document.getElementById('bldgOverlay');
     const N = 10;
-    // 黑色大理石下緣(一樓頂)的位置百分比
     const stone_bottom_pct = 0.925;
     function drawFloors() {
       overlay.innerHTML = '';
@@ -125,58 +244,214 @@
       let floor_high = stoneY / 9;
       let centers = [ Math.round(stoneY + zone_1f_height/2) ];
       let heights = [ Math.round(zone_1f_height) ];
-      for(let i=0;i<9;i++) {
+      for(let i=0; i<9; i++) {
         centers.push( Math.round(stoneY - (i+0.5)*floor_high ) );
         heights.push(Math.round(floor_high));
       }
-      // 1F在最底, 2F-10F往上
-      for(let i=0;i<N;i++) {
+      for(let i=0; i<N; i++) {
         let center = centers[i];
         let height = heights[i];
         let top = Math.max(center - Math.floor(height/2), 0);
         let f = (i+1).toString();
         let zone = document.createElement('div');
         zone.className = 'floor-zone';
-        zone.style.top = top+'px';
-        zone.style.height = height+'px';
-        zone.setAttribute('data-floor',f);
-        zone.id = 'zone'+f;
+        zone.style.top = top + 'px';
+        zone.style.height = height + 'px';
+        zone.setAttribute('data-floor', f);
+        zone.id = 'zone' + f;
         zone.onclick = function(){ showFloor(f); };
         overlay.appendChild(zone);
 
         let label = document.createElement('div');
         label.className = 'floor-label';
-        label.style.top = (top+8)+'px';
-        label.innerText = f+'F';
+        label.style.top = (top + 8) + 'px';
+        label.innerText = f + 'F';
         overlay.appendChild(label);
       }
-      // 初始高亮10樓
-      showFloor('10');
+      showFloor('10'); // 初始顯示10樓
       document.getElementById('zone10').classList.add('active');
     }
-    window.addEventListener('resize',drawFloors);
-    window.addEventListener('DOMContentLoaded',drawFloors);
+    
+    window.addEventListener('resize', drawFloors);
+    window.addEventListener('DOMContentLoaded', drawFloors);
 
+    // 根據樓層顯示對應的住戶卡片
+    // Display unit cards for the selected floor
     function showFloor(floor) {
-      document.querySelectorAll('.floor-zone').forEach(z=>z.classList.remove('active'));
-      let z=document.getElementById('zone'+floor); if(z)z.classList.add('active');
+      document.querySelectorAll('.floor-zone').forEach(z => z.classList.remove('active'));
+      const activeZone = document.getElementById('zone' + floor);
+      if (activeZone) {
+        activeZone.classList.add('active');
+      }
+
       document.getElementById('currentfloor').innerText = floor + " 樓";
-      document.getElementById('floorunits').innerHTML = floor_units[floor] || "<div>此樓層無資料</div>";
+      
+      const unitsContainer = document.getElementById('floorunits');
+      unitsContainer.innerHTML = ''; // 清空舊內容
+      
+      const units = floorUnits[floor];
+      if (units && units.length > 0) {
+        units.forEach(unit => {
+          const unitCard = createUnitCard(unit);
+          unitsContainer.appendChild(unitCard);
+        });
+      } else {
+        unitsContainer.innerHTML = '<div style="padding: 10px;">此樓層無資料</div>';
+      }
     }
+
+    // 動態創建單個住戶卡片
+    // Dynamically create a single unit card
+    function createUnitCard(data) {
+      const unitCard = document.createElement('div');
+      unitCard.className = 'unit-card';
+      
+      // 根據狀態設定標籤顏色和文字
+      // Set tag color and text based on status
+      let statusText = '';
+      let statusColor = '#bdbdbd'; // 預設為未施工
+      
+      const verificationStatus = data['驗退狀態'];
+      const constructionStatus = data['施工狀態'];
+
+      if (verificationStatus.includes('已驗收')) {
+          // 如果驗退狀態包含「已驗收」，則顯示驗收日期
+          // If the verification status contains '已驗收', show the verification date
+          const dateMatch = verificationStatus.match(/\d+月\d+日/);
+          statusText = dateMatch ? `已驗收(${dateMatch[0]})` : '已驗收';
+          statusColor = '#4caf50'; // 綠色
+      } else if (constructionStatus === '已開工') {
+          statusText = '已開工';
+          statusColor = '#fb8c00'; // 橘色
+      } else {
+          statusText = '未施工';
+          statusColor = '#bdbdbd'; // 灰色
+      }
+
+      // 檢查車位欄位是否為 "無車位"
+      // Check if the parking spot field is '無車位'
+      const carRow = data['車位'] && data['車位'] !== '無車位' 
+        ? `<div class='row'>車位：${data['車位']}</div>` 
+        : '';
+
+      unitCard.innerHTML = `
+        <div class="status-tag" style="background:${statusColor}">${statusText}</div>
+        <div class="unit-header">${data['戶別']}</div>
+        <div class="owner-label">所有權人：${data['所有權人']}</div>
+        <div class="resident-label">居住人：${data['居住人']}</div>
+        ${carRow}
+        <div class="row">狀態：${data['驗退狀態']}</div>
+        <button class="toggle-btn">查看詳細</button>
+        <div class="details">
+          <div class="row">裝修公司：${data['裝修公司']}</div>
+          <div class="row">裝修人電話：${data['裝修人電話']}</div>
+          <div class="row">開工日：${data['開工日']}</div>
+          <div class="row">預計完工：${data['預計完工']}</div>
+          <div class="row">驗退日期：${data['驗退日期']}</div>
+          <div class="row">門牌地址：${data['門牌地址']}</div>
+        </div>
+      `;
+      
+      // 添加事件監聽器來處理詳細資訊的開合
+      // Add event listener to handle details toggle
+      unitCard.querySelector('.toggle-btn').addEventListener('click', function() {
+        toggleDetails(this);
+      });
+      
+      return unitCard;
+    }
+
+    // 展開/收合詳細資訊
+    // Toggle details section
     function toggleDetails(btn) {
       const details = btn.nextElementSibling;
-      details.style.display = details.style.display === 'block' ? 'none' : 'block';
-      btn.innerText = details.style.display === 'block' ? '收合詳細' : '查看詳細';
+      // 使用 CSS display 屬性來實現開合
+      if (details.style.display === 'block') {
+        details.style.display = 'none';
+        btn.innerText = '查看詳細';
+      } else {
+        details.style.display = 'block';
+        btn.innerText = '收合詳細';
+      }
     }
-    var floor_units = {
-'10':'    <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">10A-10樓</div>      <div class="owner-label">所有權人：蔡政隆</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：質采室內裝修</div>        <div class="row">裝修人電話：0289518898</div>        <div class="row">開工日：2025-07-21</div>        <div class="row">預計完工：2025-11-28</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號10樓</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">10B-10樓</div>      <div class="owner-label">所有權人：梁本郁</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2-05</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：優舍  高宇賢</div>        <div class="row">裝修人電話：0922311253</div>        <div class="row">開工日：2025-06-23</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號10樓之1</div>      </div>    </div>    ',
-'9':'    <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">9A-9樓</div>      <div class="owner-label">所有權人：黃雅玲</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2/13</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：玳爾室內設計</div>        <div class="row">裝修人電話：0953627927</div>        <div class="row">開工日：2025-06-18</div>        <div class="row">預計完工：2025-10-22</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號9樓</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">9B-9樓</div>      <div class="owner-label">所有權人：張美華</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2-09</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：楊智斌</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：2025-07-08</div>        <div class="row">預計完工：2025-09-30</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號9樓之1</div>      </div>    </div>    ',
-'8':'    <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">8A-8樓</div>      <div class="owner-label">所有權人：黃誼僑</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2/08</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號8樓</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">8B-8樓</div>      <div class="owner-label">所有權人：佘雪紅</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號8樓之1</div>      </div>    </div>    ',
-'7':'    <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">7A-7樓</div>      <div class="owner-label">所有權人：魏均穎</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2/01</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：芬格室內裝修</div>        <div class="row">裝修人電話：02-87878057</div>        <div class="row">開工日：2025-06-25</div>        <div class="row">預計完工：2025-08-15</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號7樓</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">7B-7樓</div>      <div class="owner-label">所有權人：尹衍嵐</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號7樓之1</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">7C-7樓</div>      <div class="owner-label">所有權人：黃怡瑋</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：已驗收（6月19日)</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：劉經寰</div>        <div class="row">裝修人電話：0910228955</div>        <div class="row">開工日：2025-03-30</div>        <div class="row">預計完工：2025-05-31</div>        <div class="row">驗退日期：2025-06-19</div>        <div class="row">門牌地址：松江路252巷10號7樓之2</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">7D-7樓</div>      <div class="owner-label">所有權人：李佳芳</div>      <div class="resident-label">居住人：歐家瑋</div>            <div class="row">狀態：已驗收（7月29日)</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：自裝簡裝</div>        <div class="row">裝修人電話：02-88113300</div>        <div class="row">開工日：2025-07-29</div>        <div class="row">預計完工：2025-07-29</div>        <div class="row">驗退日期：2025-07-29</div>        <div class="row">門牌地址：松江路252巷10號7樓之3</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">7E-7樓</div>      <div class="owner-label">所有權人：王楷皓</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號7樓之5</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">7F-7樓</div>      <div class="owner-label">所有權人：游斯涵</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：鼎極室內裝修</div>        <div class="row">裝修人電話：02-86681911</div>        <div class="row">開工日：2025-07-10</div>        <div class="row">預計完工：2025-09-05</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號7樓之6</div>      </div>    </div>    ',
-'6':'    <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">6A-6樓</div>      <div class="owner-label">所有權人：李苾琳</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號6樓</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">6B-6樓</div>      <div class="owner-label">所有權人：莊春陽</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2-06</div>      <div class="row">狀態：已驗收（7月23日)</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：莊春陽</div>        <div class="row">裝修人電話：0932255349</div>        <div class="row">開工日：2025-07-11</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：2025-07-23</div>        <div class="row">門牌地址：松江路252巷10號6樓之1</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">6C-6樓</div>      <div class="owner-label">所有權人：蘇傳欽</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號6樓之2</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">6D-6樓</div>      <div class="owner-label">所有權人：黃薇芝</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2-02</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號6樓之3</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">6E-6樓</div>      <div class="owner-label">所有權人：兒玉勝行</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號6樓之5</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">6F-6樓</div>      <div class="owner-label">所有權人：陳品妤</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：巢藝設計</div>        <div class="row">裝修人電話：02-22760115</div>        <div class="row">開工日：2025-07-23</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號6樓之6</div>      </div>    </div>    ',
-'5':'    <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">5A-5樓</div>      <div class="owner-label">所有權人：仇沛珊</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：已驗收（7月9日)</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：黃韶瑋</div>        <div class="row">裝修人電話：0988075121</div>        <div class="row">開工日：2025-06-16</div>        <div class="row">預計完工：2025-07-08</div>        <div class="row">驗退日期：2025-07-09</div>        <div class="row">門牌地址：松江路252巷10號5樓</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">5B-5樓</div>      <div class="owner-label">所有權人：優舍室內裝修</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：優舍  高宇賢</div>        <div class="row">裝修人電話：0922311253</div>        <div class="row">開工日：2025-07-09</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號5樓之1</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">5C-5樓</div>      <div class="owner-label">所有權人：王子嫣</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2-14</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：曾士華</div>        <div class="row">裝修人電話：0922819918</div>        <div class="row">開工日：2025-07-01</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號5樓之2</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">5D-5樓</div>      <div class="owner-label">所有權人：張甄庭</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：已驗收（7月29日)</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：曾士華</div>        <div class="row">裝修人電話：0922819918</div>        <div class="row">開工日：2025-06-24</div>        <div class="row">預計完工：2025-07-29</div>        <div class="row">驗退日期：2025-07-29</div>        <div class="row">門牌地址：松江路252巷10號5樓之3</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">5E-5樓</div>      <div class="owner-label">所有權人：劉禹秀</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2-07</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號5樓之5</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">5F-5樓</div>      <div class="owner-label">所有權人：楊淑如</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：邱聖凱</div>        <div class="row">裝修人電話：0936042827</div>        <div class="row">開工日：2025-07-01</div>        <div class="row">預計完工：2025-08-20</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號5樓之6</div>      </div>    </div>    ',
-'4':'    <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">4A-4樓</div>      <div class="owner-label">所有權人：蕭承昕</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：優舍  高宇賢</div>        <div class="row">裝修人電話：0922311253</div>        <div class="row">開工日：2025-07-02</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號4樓</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">4B-4樓</div>      <div class="owner-label">所有權人：鄭美蘭</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2-03</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：優舍  高宇賢</div>        <div class="row">裝修人電話：0922311253</div>        <div class="row">開工日：2025-07-02</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號4樓之1</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">4CD-4樓</div>      <div class="owner-label">所有權人：張雅婷</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號4樓之2</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">4EF-4樓</div>      <div class="owner-label">所有權人：李宛儒</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2-04</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：李元亨</div>        <div class="row">裝修人電話：0918391967</div>        <div class="row">開工日：2025-06-25</div>        <div class="row">預計完工：2025-09-30</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號4樓之5</div>      </div>    </div>    ',
-'3':'    <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">3A-3樓</div>      <div class="owner-label">所有權人：張儷瑭</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號3樓</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">3B-3樓</div>      <div class="owner-label">所有權人：張儷瑋</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號3樓之1</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">3CD-3樓</div>      <div class="owner-label">所有權人：杜啓斌</div>      <div class="resident-label">居住人：尚未登記</div>      <div class=\'row\'>車位：B2-10</div>      <div class="row">狀態：已驗收（7月17日)</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：宜荷室內裝修</div>        <div class="row">裝修人電話：02-2727677</div>        <div class="row">開工日：2025-03-12</div>        <div class="row">預計完工：2025-04-25</div>        <div class="row">驗退日期：2025-07-17</div>        <div class="row">門牌地址：松江路252巷10號3樓之2</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">3EF-3樓</div>      <div class="owner-label">所有權人：高慧雯</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號3樓之5</div>      </div>    </div>    ',
-'2':'    <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">2A-2樓</div>      <div class="owner-label">所有權人：許郅玫</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號2樓</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">2B-2樓</div>      <div class="owner-label">所有權人：湯蕙如</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號2樓之1</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">2C-2樓</div>      <div class="owner-label">所有權人：黃翎鈞</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號2樓之2</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">2D-2樓</div>      <div class="owner-label">所有權人：郭純純</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號2樓之3</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">2E-2樓</div>      <div class="owner-label">所有權人：林梓聖</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號2樓之5</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#fb8c00">已開工</div>      <div class="unit-header">2F-2樓</div>      <div class="owner-label">所有權人：魏慶龍</div>      <div class="resident-label">居住人：尚未登記</div>            <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：顧紋如</div>        <div class="row">裝修人電話：0983182182</div>        <div class="row">開工日：2025-06-04</div>        <div class="row">預計完工：2025-07-05</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號2樓之6</div>      </div>    </div>    ',
-'1':'    <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">1A-1樓</div>      <div class="owner-label">所有權人：之餘國際室內裝修工程有限公司</div>      <div class="resident-label">居住人：店面</div>      <div class=\'row\'>車位：B2/11</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號1樓</div>      </div>    </div>        <div class="unit-card">      <div class="status-tag" style="background:#bdbdbd">未施工</div>      <div class="unit-header">1B-1樓</div>      <div class="owner-label">所有權人：之餘國際室內裝修工程有限公司</div>      <div class="resident-label">居住人：店面</div>      <div class=\'row\'>車位：B2-12</div>      <div class="row">狀態：未驗收</div>      <button class="toggle-btn" onclick="toggleDetails(this)">查看詳細</button>      <div class="details">        <div class="row">裝修公司：尚未登記</div>        <div class="row">裝修人電話：尚未登記</div>        <div class="row">開工日：尚未登記</div>        <div class="row">預計完工：尚未登記</div>        <div class="row">驗退日期：尚未登記</div>        <div class="row">門牌地址：松江路252巷10號1樓</div>      </div>    </div>    ',
-};</script></body></html>
+
+    // 3D 粒子背景效果
+    // 3D particle background effect
+    function threejsBackground() {
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000000, 0);
+        document.getElementById('three-bg').appendChild(renderer.domElement);
+
+        // 粒子
+        const particleCount = 5000;
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const colors = [];
+        const color = new THREE.Color();
+        const material = new THREE.PointsMaterial({
+            size: 0.8,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            opacity: 0.6
+        });
+
+        for (let i = 0; i < particleCount; i++) {
+            const x = (Math.random() - 0.5) * 2000;
+            const y = (Math.random() - 0.5) * 2000;
+            const z = (Math.random() - 0.5) * 2000;
+            positions.push(x, y, z);
+            color.setHSL(Math.random(), 1.0, 0.5);
+            colors.push(color.r, color.g, color.b);
+        }
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        camera.position.z = 5;
+
+        // 滑鼠互動
+        const mouse = new THREE.Vector2();
+        document.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 粒子旋轉
+            particles.rotation.x += 0.0005;
+            particles.rotation.y += 0.001;
+
+            // 相機跟隨滑鼠
+            camera.position.x += (mouse.x * 2 - camera.position.x) * 0.05;
+            camera.position.y += (-mouse.y * 2 - camera.position.y) * 0.05;
+            camera.lookAt(scene.position);
+            
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        // 確保視窗大小改變時，背景也能適應
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    }
+
+    // 頁面載入時啟動
+    window.onload = function() {
+      drawFloors();
+      threejsBackground();
+    };
+  </script>
+</body>
+</html>
