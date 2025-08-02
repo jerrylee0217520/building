@@ -2,16 +2,31 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>佳元松江社區 互動樓層外觀看板（優化版）</title>
+  <title>佳元松江社區 樓層互動資訊看板</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- 引入 Tailwind CSS for responsive and modern styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* 使用者提供的原始樣式，經過微調以適應動態內容 */
+    /* 自定義滾動條樣式 */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f0f4f8;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #c5d0d8;
+      border-radius: 4px;
+    }
+    /* 全域樣式 */
     html, body {
       margin: 0; padding: 0;
-      background: #eef2f8; /* 柔和的背景色 */
+      background: linear-gradient(135deg, #eef2f8, #d9e2ec); /* 柔和的漸層背景 */
       font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif;
+      color: #333;
       overflow-x: hidden; /* 避免水平捲軸 */
     }
+    /* 3D 背景容器 */
     #three-bg {
         position: fixed;
         top: 0;
@@ -19,8 +34,9 @@
         width: 100%;
         height: 100%;
         z-index: -1;
-        opacity: 0.8;
+        opacity: 0.7;
     }
+    /* 建築物外觀圖容器 */
     .bldg-bg-wrap {
       width: 96vw;
       max-width: 700px;
@@ -29,23 +45,27 @@
       background: url('jiayuansongjiang_building2.png') no-repeat bottom center;
       background-size: contain;
       position: relative;
-      box-shadow: 0 2px 18px #0003; border-radius: 18px;
+      box-shadow: 0 4px 25px rgba(0,0,0,0.1); border-radius: 18px;
     }
+    /* 樓層熱區的覆蓋層 */
     .bldg-overlay {
       position: absolute; left: 0; top: 0; width: 100%; height: 100%;
       pointer-events: none;
     }
+    /* 樓層熱區 */
     .floor-zone {
       position: absolute; left: 0; width: 100%;
       opacity: 0.08; background: #26c6da; border-radius: 10px;
       pointer-events: auto;
       cursor: pointer;
-      transition: opacity .15s;
+      transition: opacity .2s, transform 0.2s;
       border: 2px solid transparent;
     }
     .floor-zone.active, .floor-zone:hover {
       opacity: 0.16; border: 2px solid #0288d1;
+      transform: scale(1.01);
     }
+    /* 樓層標籤 */
     .floor-label {
       position: absolute; left: 10px;
       font-size: max(1.5vw, 16px);
@@ -56,78 +76,85 @@
       .bldg-bg-wrap { width: 98vw; max-width: 98vw; }
       .floor-label { font-size: max(3vw, 14px); left: 6px; }
     }
+    /* 住戶卡片區塊 */
     .floor-section { margin: 24px 0 0 0; }
     .floor-title {
         font-size: 24px;
         font-weight: bold;
         text-align: center;
-        color: #000; /* 強化標題顏色為黑色 */
+        color: #000;
         margin: 0 0 16px 0;
     }
     .unit-row-wrap { overflow-x: auto; padding: 0 2vw 7px 2vw; box-sizing: border-box; }
     .unit-row { 
         display: flex; gap: 13px; 
-        min-width: fit-content; /* 確保內容不會被截斷 */
+        min-width: fit-content;
     }
     .unit-card { 
-        flex: 0 0 auto; /* 防止卡片在小螢幕上縮小 */
-        width: 200px;
+        flex: 0 0 auto;
+        width: 220px; /* 增加卡片寬度 */
         background: #fff; border-radius: 18px; 
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1); /* 調整陰影更柔和 */
-        padding: 16px; /* 增加內距 */
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        padding: 16px;
         display: flex; flex-direction: column; 
         align-items: flex-start; 
         margin-bottom: 0; 
-        transition: box-shadow .2s, transform 0.3s ease-out; /* 新增 transform 過渡效果 */
+        transition: box-shadow .3s, transform 0.3s ease-out;
         position: relative;
+        animation: fadeIn 0.5s ease-out forwards; /* 卡片進場動畫 */
     }
     .unit-card:hover { 
-        box-shadow: 0 6px 20px rgba(0,0,0,0.15); 
-        transform: translateY(-5px); /* 滑鼠移入時卡片上浮 */
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15); 
+        transform: translateY(-8px);
     } 
+    /* 狀態標籤 */
     .status-tag { 
         display: inline-block; 
         font-size: 14px; font-weight: 600; 
         color: #fff; border-radius: 13px; 
-        padding: 2px 13px 3px 13px; 
-        margin-bottom: 7px; letter-spacing: 2px;
-        transition: opacity 0.5s ease-in-out; /* 新增淡入動畫 */
+        padding: 4px 13px; 
+        margin-bottom: 7px; letter-spacing: 1px;
     }
     .unit-header { 
-        font-size: 19px; font-weight: bold; 
-        margin-bottom: 2px; color: #2d3a4b; 
-        transition: opacity 0.5s ease-in-out;
+        font-size: 20px; font-weight: bold; 
+        margin-bottom: 4px; color: #2d3a4b; 
     }
     .owner-label { 
         font-size: 15px; color: #333; 
         margin-bottom: 2px; 
-        transition: opacity 0.5s ease-in-out;
     }
     .resident-label { 
         font-size: 14px; color: #888; 
         margin-bottom: 5px; 
-        transition: opacity 0.5s ease-in-out;
     }
     .row { 
         font-size: 13px; color: #444; 
         margin-bottom: 3px; 
-        transition: opacity 0.5s ease-in-out;
     }
-    .details { 
-        display: none; 
-        margin-top: 10px; /* 增加間距 */
-        border-top: 1px dashed #d1d1d1; /* 調整虛線顏色 */
-        padding-top: 10px; 
-        overflow: hidden;
+    /* 詳細資訊區塊 */
+    .details-wrap {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 0.3s ease-out;
     }
+    .details-wrap.expanded {
+      grid-template-rows: 1fr;
+    }
+    .details {
+      overflow: hidden;
+      margin-top: 10px;
+      border-top: 1px dashed #d1d1d1;
+      padding-top: 10px;
+    }
+    /* 按鈕樣式 */
     .toggle-btn { 
-        background: #f0f4f8; /* 淺灰色按鈕背景 */
+        background: #f0f4f8;
         color: #555; 
-        border: 1px solid #ccc; /* 增加按鈕邊框 */
-        border-radius: 20px; /* 圓角更大 */
+        border: 1px solid #ccc;
+        border-radius: 20px;
         font-size: 13px;
-        padding: 6px 16px; /* 增加內距 */
-        margin-top: 8px; /* 增加上邊距 */
+        padding: 6px 16px;
+        margin-top: 8px;
         cursor: pointer; 
         transition: all .2s;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
@@ -142,34 +169,29 @@
         from { opacity: 0; transform: translateY(20px); }
         to { opacity: 1; transform: translateY(0); }
     }
-    .unit-card {
-        animation: fadeIn 0.5s ease-out forwards;
-    }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
   <div id="three-bg"></div>
-  <h2 style="text-align:center;margin-bottom:8px;margin-top:8px;position:relative;color:#000;text-shadow:0 0 10px #fff;">佳元松江社區 互動樓層外觀看板</h2>
+  <h2 class="text-3xl font-bold text-center text-gray-800 my-4" style="text-shadow: 0 0 10px rgba(255,255,255,0.7);">佳元松江社區 樓層互動資訊看板</h2>
   <div class="bldg-bg-wrap" id="bldgWrap">
     <div class="bldg-overlay" id="bldgOverlay"></div>
   </div>
-  <div id="floordatawrap">
+  <div id="floordatawrap" class="px-2 sm:px-4">
     <div class="floor-section">
-      <div class="floor-title" id="currentfloor"></div>
+      <h3 class="floor-title" id="currentfloor"></h3>
       <div class="unit-row-wrap"><div class="unit-row" id="floorunits"></div></div>
     </div>
   </div>
+  <footer class="text-center text-gray-500 text-sm mt-8 pb-4">
+    © 佳元松江2025
+  </footer>
   <script>
     // =========================================================================
     // 資料維護區塊 (Data Maintenance Section)
-    //
     // 未來如果要更新住戶的資料，只需要修改下方這個 `allUnitData` 陣列即可。
     // 這個陣列中的每個物件都代表一個住戶單元。
-    //
-    // To update resident information in the future, you only need to modify 
-    // the `allUnitData` array below. Each object in this array represents 
-    // a single residential unit.
     // =========================================================================
     const allUnitData = [
       { "戶別": "10A-10樓", "所有權人": "蔡政隆", "居住人": "尚未登記", "裝修公司": "質采室內裝修", "裝修人電話": "0289518898", "開工日": "2025/07/21", "預計完工": "2025-11-28", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號10樓" },
@@ -341,13 +363,15 @@
         ${carRow}
         <div class="row">狀態：${data['驗退狀態']}</div>
         <button class="toggle-btn">查看詳細</button>
-        <div class="details">
-          <div class="row">裝修公司：${data['裝修公司']}</div>
-          <div class="row">裝修人電話：${data['裝修人電話']}</div>
-          <div class="row">開工日：${data['開工日']}</div>
-          <div class="row">預計完工：${data['預計完工']}</div>
-          <div class="row">驗退日期：${data['驗退日期']}</div>
-          <div class="row">門牌地址：${data['門牌地址']}</div>
+        <div class="details-wrap">
+          <div class="details">
+            <div class="row">裝修公司：${data['裝修公司']}</div>
+            <div class="row">裝修人電話：${data['裝修人電話']}</div>
+            <div class="row">開工日：${data['開工日']}</div>
+            <div class="row">預計完工：${data['預計完工']}</div>
+            <div class="row">驗退日期：${data['驗退日期']}</div>
+            <div class="row">門牌地址：${data['門牌地址']}</div>
+          </div>
         </div>
       `;
       
@@ -363,15 +387,9 @@
     // 展開/收合詳細資訊
     // Toggle details section
     function toggleDetails(btn) {
-      const details = btn.nextElementSibling;
-      // 使用 CSS display 屬性來實現開合
-      if (details.style.display === 'block') {
-        details.style.display = 'none';
-        btn.innerText = '查看詳細';
-      } else {
-        details.style.display = 'block';
-        btn.innerText = '收合詳細';
-      }
+      const detailsWrap = btn.nextElementSibling;
+      const isExpanded = detailsWrap.classList.toggle('expanded');
+      btn.innerText = isExpanded ? '收合詳細' : '查看詳細';
     }
 
     // 3D 粒子背景效果
@@ -447,10 +465,10 @@
     }
 
     // 頁面載入時啟動
-    window.onload = function() {
+    window.addEventListener('load', () => {
       drawFloors();
       threejsBackground();
-    };
+    });
   </script>
 </body>
 </html>
