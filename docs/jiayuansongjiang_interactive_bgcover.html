@@ -64,15 +64,14 @@
         color: #000; /* 強化標題顏色為黑色 */
         margin: 0 0 16px 0;
     }
-    .unit-row-wrap { overflow-x: auto; padding-bottom: 7px; }
+    .unit-row-wrap { overflow-x: auto; padding: 0 2vw 7px 2vw; box-sizing: border-box; }
     .unit-row { 
         display: flex; gap: 13px; 
-        min-width: 330px; 
-        padding: 0 2vw; 
-        box-sizing: border-box; 
+        min-width: fit-content; /* 確保內容不會被截斷 */
     }
     .unit-card { 
-        flex: 1 1 200px; /* 讓卡片更具彈性 */
+        flex: 0 0 auto; /* 防止卡片在小螢幕上縮小 */
+        width: 200px;
         background: #fff; border-radius: 18px; 
         box-shadow: 0 2px 8px rgba(0,0,0,0.1); /* 調整陰影更柔和 */
         padding: 16px; /* 增加內距 */
