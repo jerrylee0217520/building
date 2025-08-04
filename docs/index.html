@@ -163,12 +163,12 @@
   <script type="module">
     // Import Firebase modules
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, collection, doc, getDocs, setDoc, updateDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- Global Variables ---
-    let db, auth, appId;
-    let allUnitData = []; // This will be populated from Firestore
+    let db, auth;
+    let allUnitData = [];
     let floorUnits = {};
     let currentFloor = '10'; // Default floor to show
 
@@ -234,17 +234,7 @@
             db = getFirestore(app);
             auth = getAuth(app);
             
-            // We can get the appId directly from the config object
-            appId = firebaseConfig.appId;
-            
-            // The logic for anonymous or custom token sign-in remains the same.
-            const authToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-            if (authToken) {
-                await signInWithCustomToken(auth, authToken);
-            } else {
-                await signInAnonymously(auth);
-            }
-            
+            await signInAnonymously(auth);
             setupSnapshotListener();
 
         } catch (error) {
@@ -254,10 +244,11 @@
     }
 
     function setupSnapshotListener() {
-        const unitsCollection = collection(db, `data/units`);
+        // *** 修正 ***: 確保集合路徑為 'units' (單數層級)
+        const unitsCollection = collection(db, 'units');
         onSnapshot(unitsCollection, (snapshot) => {
             if (snapshot.empty) {
-                console.log("No data in Firestore, seeding initial data...");
+                console.log("Firestore 中 'units' 集合無資料，正在寫入初始資料...");
                 seedInitialData(unitsCollection);
             } else {
                 allUnitData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -274,8 +265,8 @@
                 populateUnitSelect();
             }
         }, (error) => {
-            console.error("Snapshot listener error:", error);
-            document.getElementById('currentfloor').innerText = "資料讀取權限不足";
+            console.error("Snapshot 監聽器錯誤:", error);
+            document.getElementById('currentfloor').innerText = "資料讀取權限不足，請檢查 Firestore 安全性規則。";
         });
     }
 
@@ -286,7 +277,7 @@
             batch.set(docRef, unit);
         });
         await batch.commit();
-        console.log("Initial data seeded successfully.");
+        console.log("初始資料寫入成功。");
     }
 
     function processAndRenderData() {
@@ -463,7 +454,7 @@
             };
         } else if (statusToSet === 'finish') {
             updateData = {
-                '施工狀態': '已開工', // This should probably be '完工' but based on data, it remains '已開工'
+                '施工狀態': '已開工',
                 '驗退狀態': `已驗收 (${shortDateString})`,
                 '驗退日期': dateString
             };
@@ -471,7 +462,7 @@
 
         updateStatusDiv.textContent = '更新中...';
         try {
-            const unitRef = doc(db, `data/units`, unitId);
+            const unitRef = doc(db, 'units', unitId);
             await updateDoc(unitRef, updateData);
             updateStatusDiv.textContent = `成功將 ${unitId} 更新狀態！`;
             updateStatusDiv.style.color = 'green';
