@@ -138,6 +138,7 @@
     </div>
   </div>
 
+  <!-- Management Modal -->
   <div id="manageModal" class="modal-backdrop">
     <div class="modal-content">
       <h3 class="text-xl font-bold mb-4">更新住戶施工狀態</h3>
@@ -219,15 +220,14 @@
     // --- Firebase Initialization and Data Handling ---
     async function initializeFirebase() {
         try {
-            // Your web app's Firebase configuration
+            // *** 修正: 直接使用您提供的 Firebase 設定 ***
             const firebaseConfig = {
               apiKey: "AIzaSyDeRHsloR1iY0_bzpYbPzdCiBljGfck98k",
               authDomain: "jy-2025.firebaseapp.com",
               projectId: "jy-2025",
-              storageBucket: "jy-2025.firebasestorage.app",
+              storageBucket: "jy-2025.appspot.com", // 修正: .firebasestorage.app -> .appspot.com
               messagingSenderId: "640527461851",
-              appId: "1:640527461851:web:eed9f82d698275371fcbfe",
-              measurementId: "G-HVEVMTSR9L"
+              appId: "1:640527461851:web:eed9f82d698275371fcbfe"
             };
 
             const app = initializeApp(firebaseConfig);
@@ -244,7 +244,7 @@
     }
 
     function setupSnapshotListener() {
-        // *** 修正 ***: 確保集合路徑為 'units' (單數層級)
+        // *** 修正: 確保集合路徑為 'units'，以匹配您的安全性規則 ***
         const unitsCollection = collection(db, 'units');
         onSnapshot(unitsCollection, (snapshot) => {
             if (snapshot.empty) {
