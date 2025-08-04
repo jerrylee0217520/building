@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>佳元松江社區 樓層互動資訊看板 (資料庫版)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom scrollbar styles */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f0f4f8; }
+    ::-webkit-scrollbar-thumb { background: #c5d0d8; border-radius: 4px; }
+    
+    /* Global styles */
+    html, body {
+      margin: 0; padding: 0;
+      background: linear-gradient(135deg, #eef2f8, #d9e2ec);
+      font-family: 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+      color: #333;
+      overflow-x: hidden;
+    }
+    
+    /* 3D background container */
+    #three-bg {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: -1; opacity: 0.7;
+    }
+
+    /* Building image container */
+    .bldg-bg-wrap {
+      width: 96vw; max-width: 700px; aspect-ratio: 1536/1024;
+      margin: 18px auto 0 auto;
+      background: url('https://storage.googleapis.com/gemini-prod-us-west1-assets/original_images/jiayuansongjiang_building2.png') no-repeat bottom center;
+      background-size: contain; position: relative;
+      box-shadow: 0 4px 25px rgba(0,0,0,0.1); border-radius: 18px;
+    }
+    
+    /* Floor hot-zone overlay */
+    .bldg-overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+    
+    /* Floor hot-zone */
+    .floor-zone {
+      position: absolute; left: 0; width: 100%;
+      opacity: 0.08; background: #26c6da; border-radius: 10px;
+      pointer-events: auto; cursor: pointer;
+      transition: opacity .2s, transform 0.2s;
+      border: 2px solid transparent;
+    }
+    .floor-zone.active, .floor-zone:hover { opacity: 0.16; border: 2px solid #0288d1; transform: scale(1.01); }
+    
+    /* Floor label */
+    .floor-label {
+      position: absolute; left: 10px; font-size: max(1.5vw, 16px);
+      color: #222; font-weight: bold; text-shadow: 0 1px 7px #fff8;
+      z-index: 10; pointer-events: none;
+    }
+    
+    @media (max-width: 700px) {
+      .bldg-bg-wrap { width: 98vw; max-width: 98vw; }
+      .floor-label { font-size: max(3vw, 14px); left: 6px; }
+    }
+    
+    /* Resident card section */
+    .floor-section { margin: 24px 0 0 0; }
+    .floor-title { font-size: 24px; font-weight: bold; text-align: center; color: #000; margin: 0 0 16px 0; }
+    .unit-row-wrap { overflow-x: auto; padding: 0 2vw 7px 2vw; box-sizing: border-box; }
+    .unit-row { display: flex; gap: 13px; min-width: fit-content; }
+    .unit-card { 
+        flex: 0 0 auto; width: 220px; background: #fff; border-radius: 18px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 16px;
+        display: flex; flex-direction: column; align-items: flex-start; 
+        margin-bottom: 0; transition: box-shadow .3s, transform 0.3s ease-out;
+        position: relative; animation: fadeIn 0.5s ease-out forwards;
+    }
+    .unit-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,0.15); transform: translateY(-8px); } 
+    
+    /* Status tag */
+    .status-tag { 
+        display: inline-block; font-size: 14px; font-weight: 600; 
+        color: #fff; border-radius: 13px; padding: 4px 13px; 
+        margin-bottom: 7px; letter-spacing: 1px;
+    }
+    .unit-header { font-size: 20px; font-weight: bold; margin-bottom: 4px; color: #2d3a4b; }
+    .owner-label { font-size: 15px; color: #333; margin-bottom: 2px; }
+    .resident-label { font-size: 14px; color: #888; margin-bottom: 5px; }
+    .row { font-size: 13px; color: #444; margin-bottom: 3px; }
+    
+    /* Details section */
+    .details-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s ease-out; }
+    .details-wrap.expanded { grid-template-rows: 1fr; }
+    .details { overflow: hidden; margin-top: 10px; border-top: 1px dashed #d1d1d1; padding-top: 10px; }
+    
+    /* Buttons */
+    .toggle-btn { 
+        background: #f0f4f8; color: #555; border: 1px solid #ccc; border-radius: 20px;
+        font-size: 13px; padding: 6px 16px; margin-top: 8px; cursor: pointer; 
+        transition: all .2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .toggle-btn:hover { background: #e0e5ea; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    
+    /* Management Modal */
+    .modal-backdrop {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); z-index: 100;
+        display: none; justify-content: center; align-items: center;
+    }
+    .modal-content {
+        background: white; padding: 2rem; border-radius: 12px;
+        width: 90%; max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+
+    /* Card fade-in animation */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <div id="three-bg"></div>
+  
+  <div class="flex justify-between items-center my-4 px-4">
+      <h2 class="text-2xl sm:text-3xl font-bold text-gray-800" style="text-shadow: 0 0 10px rgba(255,255,255,0.7);">佳元松江社區 樓層互動資訊看板</h2>
+      <button id="manageBtn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-all">
+        管理
+      </button>
+  </div>
+
+  <div class="bldg-bg-wrap" id="bldgWrap">
+    <div class="bldg-overlay" id="bldgOverlay"></div>
+  </div>
+
+  <div id="floordatawrap" class="px-2 sm:px-4">
+    <div class="floor-section">
+      <h3 class="floor-title" id="currentfloor">讀取資料中...</h3>
+      <div class="unit-row-wrap"><div class="unit-row" id="floorunits"></div></div>
+    </div>
+  </div>
+
+  <!-- Management Modal -->
+  <div id="manageModal" class="modal-backdrop">
+    <div class="modal-content">
+      <h3 class="text-xl font-bold mb-4">更新住戶施工狀態</h3>
+      <div class="mb-4">
+        <label for="unitSelect" class="block text-gray-700 text-sm font-bold mb-2">選擇戶別:</label>
+        <select id="unitSelect" class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"></select>
+      </div>
+      <div class="flex gap-4">
+        <button id="startWorkBtn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg w-full transition-all">更新為 已開工</button>
+        <button id="finishWorkBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg w-full transition-all">更新為 已驗收</button>
+      </div>
+      <div class="text-right mt-6">
+        <button id="closeModalBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition-all">關閉</button>
+      </div>
+      <div id="updateStatus" class="mt-4 text-center"></div>
+    </div>
+  </div>
+
+  <footer class="text-center text-gray-500 text-sm mt-8 pb-4">
+    © 佳元松江-管理中心2025
+  </footer>
+
+  <script type="module">
+    // Import Firebase modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, doc, getDocs, setDoc, updateDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- Global Variables ---
+    let db, auth;
+    let allUnitData = []; // This will be populated from Firestore
+    let floorUnits = {};
+    let currentFloor = '10'; // Default floor to show
+
+    // --- Initial Data (Only for seeding the database for the first time) ---
+    const initialUnitData = [
+      { "戶別": "10A-10樓", "所有權人": "蔡政隆", "居住人": "尚未登記", "裝修公司": "質采室內裝修", "裝修人電話": "0289518898", "開工日": "2025/07/21", "預計完工": "2025-11-28", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號10樓" },
+      { "戶別": "10B-10樓", "所有權人": "梁本郁", "居住人": "尚未登記", "裝修公司": "優舍  高宇賢", "裝修人電話": "0922311253", "開工日": "2025/06/23", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2-05", "門牌地址": "松江路252巷10號10樓之1" },
+      { "戶別": "9A-9樓", "所有權人": "黃雅玲", "居住人": "尚未登記", "裝修公司": "玳爾室內設計", "裝修人電話": "0953627927", "開工日": "2025/06/18", "預計完工": "2025-10-22", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2/13", "門牌地址": "松江路252巷10號9樓" },
+      { "戶別": "9B-9樓", "所有權人": "張美華", "居住人": "尚未登記", "裝修公司": "楊智斌", "裝修人電話": "尚未登記", "開工日": "2025/07/08", "預計完工": "2025-09-30", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2-09", "門牌地址": "松江路252巷10號9樓之1" },
+      { "戶別": "8A-8樓", "所有權人": "黃誼僑", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "B2/08", "門牌地址": "松江路252巷10號8樓" },
+      { "戶別": "8B-8樓", "所有權人": "佘雪紅", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號8樓之1" },
+      { "戶別": "7A-7樓", "所有權人": "魏均穎", "居住人": "尚未登記", "裝修公司": "芬格室內裝修", "裝修人電話": "02-87878057", "開工日": "2025/06/25", "預計完工": "2025-08-15", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2/01", "門牌地址": "松江路252巷10號7樓" },
+      { "戶別": "7B-7樓", "所有權人": "尹衍嵐", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號7樓之1" },
+      { "戶別": "7C-7樓", "所有權人": "黃怡瑋", "居住人": "尚未登記", "裝修公司": "劉經寰", "裝修人電話": "0910228955", "開工日": "2025/03/30", "預計完工": "2025-05-31", "驗退日期": "2025-06-19", "驗退狀態": "已驗收（6月19日)", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號7樓之2" },
+      { "戶別": "7D-7樓", "所有權人": "李佳芳", "居住人": "歐家瑋", "裝修公司": "自裝簡裝", "裝修人電話": "02-88113300", "開工日": "2025/07/29", "預計完工": "2025-07-29", "驗退日期": "2025-07-29", "驗退狀態": "已驗收（7月29日)", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號7樓之3" },
+      { "戶別": "7E-7樓", "所有權人": "王楷皓", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號7樓之5" },
+      { "戶別": "7F-7樓", "所有權人": "游斯涵", "居住人": "尚未登記", "裝修公司": "鼎極室內裝修", "裝修人電話": "02-86681911", "開工日": "2025/07/10", "預計完工": "2025-09-05", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號7樓之6" },
+      { "戶別": "6A-6樓", "所有權人": "李苾琳", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號6樓" },
+      { "戶別": "6B-6樓", "所有權人": "莊春陽", "居住人": "尚未登記", "裝修公司": "莊春陽", "裝修人電話": "0932255349", "開工日": "2025/07/11", "預計完工": "尚未登記", "驗退日期": "2025-07-23", "驗退狀態": "已驗收（7月23日)", "施工狀態": "已開工", "車位": "B2-06", "門牌地址": "松江路252巷10號6樓之1" },
+      { "戶別": "6C-6樓", "所有權人": "蘇傳欽", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號6樓之2" },
+      { "戶別": "6D-6樓", "所有權人": "黃薇芝", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "B2-02", "門牌地址": "松江路252巷10號6樓之3" },
+      { "戶別": "6E-6樓", "所有權人": "兒玉勝行", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號6樓之5" },
+      { "戶別": "6F-6樓", "所有權人": "陳品妤", "居住人": "尚未登記", "裝修公司": "巢藝設計", "裝修人電話": "02-22760115", "開工日": "2025/07/23", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號6樓之6" },
+      { "戶別": "5A-5樓", "所有權人": "仇沛珊", "居住人": "尚未登記", "裝修公司": "黃韶瑋", "裝修人電話": "0988075121", "開工日": "2025/06/16", "預計完工": "2025-07-08", "驗退日期": "2025-07-09", "驗退狀態": "已驗收（7月9日)", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號5樓" },
+      { "戶別": "5B-5樓", "所有權人": "優舍室內裝修", "居住人": "尚未登記", "裝修公司": "優舍  高宇賢", "裝修人電話": "0922311253", "開工日": "2025/07/09", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號5樓之1" },
+      { "戶別": "5C-5樓", "所有權人": "王子嫣", "居住人": "尚未登記", "裝修公司": "曾士華", "裝修人電話": "0922819918", "開工日": "2025/07/01", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2-14", "門牌地址": "松江路252巷10號5樓之2" },
+      { "戶別": "5D-5樓", "所有權人": "張甄庭", "居住人": "尚未登記", "裝修公司": "曾士華", "裝修人電話": "0922819918", "開工日": "2025/06/24", "預計完工": "2025-07-29", "驗退日期": "2025-07-29", "驗退狀態": "已驗收（7月29日)", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號5樓之3" },
+      { "戶別": "5E-5樓", "所有權人": "劉禹秀", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "B2-07", "門牌地址": "松江路252巷10號5樓之5" },
+      { "戶別": "5F-5樓", "所有權人": "楊淑如", "居住人": "尚未登記", "裝修公司": "邱聖凱", "裝修人電話": "0936042827", "開工日": "2025/07/01", "預計完工": "2025-08-20", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號5樓之6" },
+      { "戶別": "4A-4樓", "所有權人": "蕭承昕", "居住人": "尚未登記", "裝修公司": "優舍  高宇賢", "裝修人電話": "0922311253", "開工日": "2025/07/02", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號4樓" },
+      { "戶別": "4B-4樓", "所有權人": "鄭美蘭", "居住人": "尚未登記", "裝修公司": "優舍  高宇賢", "裝修人電話": "0922311253", "開工日": "2025/07/02", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2-03", "門牌地址": "松江路252巷10號4樓之1" },
+      { "戶別": "4CD-4樓", "所有權人": "張雅婷", "居住人": "蔡資恆", "裝修公司": "蔡資恆", "裝修人電話": "0968081890", "開工日": "2025/08/04", "預計完工": "2025-09-30", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號4樓之2" },
+      { "戶別": "4EF-4樓", "所有權人": "李宛儒", "居住人": "尚未登記", "裝修公司": "李元亨", "裝修人電話": "0918391967", "開工日": "2025/06/25", "預計完工": "2025-09-30", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2-04", "門牌地址": "松江路252巷10號4樓之5" },
+      { "戶別": "3A-3樓", "所有權人": "張儷瑭", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號3樓" },
+      { "戶別": "3B-3樓", "所有權人": "張儷瑋", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號3樓之1" },
+      { "戶別": "3CD-3樓", "所有權人": "杜啓斌", "居住人": "尚未登記", "裝修公司": "宜荷室內裝修", "裝修人電話": "02-2727677", "開工日": "2025/03/12", "預計完工": "2025-04-25", "驗退日期": "2025-07-17", "驗退狀態": "已驗收（7月17日)", "施工狀態": "已開工", "車位": "B2-10", "門牌地址": "松江路252巷10號3樓之2" },
+      { "戶別": "3EF-3樓", "所有權人": "高慧雯", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號3樓之5" },
+      { "戶別": "2A-2樓", "所有權人": "許郅玫", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓" },
+      { "戶別": "2B-2樓", "所有權人": "湯蕙如", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓之1" },
+      { "戶別": "2C-2樓", "所有權人": "黃翎鈞", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓之2" },
+      { "戶別": "2D-2樓", "所有權人": "郭純純", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓之3" },
+      { "戶別": "2E-2樓", "所有權人": "林梓聖", "居住人": "尚未登記", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓之5" },
+      { "戶別": "2F-2樓", "所有權人": "魏慶龍", "居住人": "尚未登記", "裝修公司": "顧紋如", "裝修人電話": "0983182182", "開工日": "2025/06/04", "預計完工": "2025-07-05", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號2樓之6" },
+      { "戶別": "1A-1樓", "所有權人": "之餘國際室內裝修工程有限公司", "居住人": "店面", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "B2/11", "門牌地址": "松江路252巷10號1樓" },
+      { "戶別": "1B-1樓", "所有權人": "之餘國際室內裝修工程有限公司", "居住人": "店面", "裝修公司": "尚未登記", "裝修人電話": "尚未登記", "開工日": "尚未登記", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "未施工", "車位": "B2-12", "門牌地址": "松江路252巷10號1樓" }
+    ];
+
+    // --- Firebase Initialization and Data Handling ---
+    async function initializeFirebase() {
+        try {
+            // Ensure config is provided by the environment before proceeding.
+            if (typeof __firebase_config === 'undefined') {
+                document.getElementById('currentfloor').innerText = "Firebase 設定檔未定義";
+                console.error("Firebase config is not defined by the environment.");
+                return; // Stop execution if config is missing
+            }
+            const firebaseConfig = JSON.parse(__firebase_config);
+
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            // Authenticate first, then set up the listener.
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+            
+            // Now that we are authenticated, set up the real-time listener.
+            setupSnapshotListener();
+
+        } catch (error) {
+            console.error("Firebase 初始化或認證失敗:", error);
+            document.getElementById('currentfloor').innerText = "資料庫連接或認證失敗";
+        }
+    }
+
+    function setupSnapshotListener() {
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'jiayuansongjiang-app';
+        const unitsCollection = collection(db, `artifacts/${appId}/public/data/units`);
+        onSnapshot(unitsCollection, (snapshot) => {
+            if (snapshot.empty) {
+                console.log("Firestore 中無資料，正在寫入初始資料...");
+                seedInitialData(unitsCollection);
+            } else {
+                allUnitData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Sort data to ensure consistent order
+                allUnitData.sort((a, b) => {
+                    const floorA_match = a['戶別'].match(/(\d+)/);
+                    const floorB_match = b['戶別'].match(/(\d+)/);
+                    if (!floorA_match || !floorB_match) return 0;
+                    const floorA = parseInt(floorA_match[1]);
+                    const floorB = parseInt(floorB_match[1]);
+                    if (floorA !== floorB) return floorB - floorA;
+                    return a['戶別'].localeCompare(b['戶別']);
+                });
+                processAndRenderData();
+                populateUnitSelect();
+            }
+        }, (error) => {
+            console.error("Snapshot 監聽器錯誤:", error);
+            document.getElementById('currentfloor').innerText = "資料讀取權限不足";
+        });
+    }
+
+    async function seedInitialData(unitsCollection) {
+        const batch = writeBatch(db);
+        initialUnitData.forEach(unit => {
+            const docRef = doc(unitsCollection, unit['戶別']);
+            batch.set(docRef, unit);
+        });
+        await batch.commit();
+        console.log("初始資料寫入成功。");
+    }
+
+    function processAndRenderData() {
+        floorUnits = allUnitData.reduce((acc, unit) => {
+            const floorMatch = unit["戶別"].match(/(\d+)/);
+            if (floorMatch) {
+                const floor = floorMatch[1];
+                if (!acc[floor]) acc[floor] = [];
+                acc[floor].push(unit);
+            }
+            return acc;
+        }, {});
+        
+        drawFloors();
+        showFloor(currentFloor);
+    }
+
+    // --- UI Rendering Functions ---
+
+    function drawFloors() {
+      const container = document.getElementById('bldgWrap');
+      const overlay = document.getElementById('bldgOverlay');
+      if (!container || !overlay) return;
+      overlay.innerHTML = '';
+      let H = container.offsetHeight;
+      if (H === 0) {
+          setTimeout(drawFloors, 100);
+          return;
+      }
+      const N = 10;
+      const stone_bottom_pct = 0.925;
+      let stoneY = Math.round(H * stone_bottom_pct);
+      let zone_1f_height = H - stoneY;
+      let floor_high = stoneY / 9;
+      let centers = [ Math.round(stoneY + zone_1f_height/2) ];
+      let heights = [ Math.round(zone_1f_height) ];
+      for(let i=0; i<9; i++) {
+        centers.push( Math.round(stoneY - (i+0.5)*floor_high ) );
+        heights.push(Math.round(floor_high));
+      }
+      for(let i=0; i<N; i++) {
+        let center = centers[i];
+        let height = heights[i];
+        let top = Math.max(center - Math.floor(height/2), 0);
+        let f = (i+1).toString();
+        let zone = document.createElement('div');
+        zone.className = 'floor-zone';
+        zone.style.top = top + 'px';
+        zone.style.height = height + 'px';
+        zone.setAttribute('data-floor', f);
+        zone.id = 'zone' + f;
+        zone.onclick = () => showFloor(f);
+        overlay.appendChild(zone);
+
+        let label = document.createElement('div');
+        label.className = 'floor-label';
+        label.style.top = (top + 8) + 'px';
+        label.innerText = f + 'F';
+        overlay.appendChild(label);
+      }
+      const activeZone = document.getElementById('zone' + currentFloor);
+      if (activeZone) activeZone.classList.add('active');
+    }
+    
+    function showFloor(floor) {
+      currentFloor = floor;
+      document.querySelectorAll('.floor-zone').forEach(z => z.classList.remove('active'));
+      const activeZone = document.getElementById('zone' + floor);
+      if (activeZone) activeZone.classList.add('active');
+
+      document.getElementById('currentfloor').innerText = floor + " 樓";
+      
+      const unitsContainer = document.getElementById('floorunits');
+      unitsContainer.innerHTML = ''; 
+      
+      const units = floorUnits[floor];
+      if (units && units.length > 0) {
+        units.forEach(unit => {
+          const unitCard = createUnitCard(unit);
+          unitsContainer.appendChild(unitCard);
+        });
+      } else {
+        unitsContainer.innerHTML = '<div class="p-4 text-gray-500">此樓層無資料</div>';
+      }
+    }
+
+    function createUnitCard(data) {
+      const unitCard = document.createElement('div');
+      unitCard.className = 'unit-card';
+      
+      let statusText = '';
+      let statusColor = '#bdbdbd';
+      
+      const verificationStatus = data['驗退狀態'];
+      const constructionStatus = data['施工狀態'];
+
+      if (verificationStatus && verificationStatus.includes('已驗收')) {
+          const dateMatch = verificationStatus.match(/\d+月\d+日/);
+          statusText = dateMatch ? `已驗收(${dateMatch[0]})` : '已驗收';
+          statusColor = '#4caf50';
+      } else if (constructionStatus === '已開工') {
+          statusText = '已開工';
+          statusColor = '#fb8c00';
+      } else {
+          statusText = '未施工';
+          statusColor = '#bdbdbd';
+      }
+
+      const carRow = data['車位'] && data['車位'] !== '無車位' 
+        ? `<div class='row'>車位：${data['車位']}</div>` 
+        : '';
+
+      unitCard.innerHTML = `
+        <div class="status-tag" style="background:${statusColor}">${statusText}</div>
+        <div class="unit-header">${data['戶別']}</div>
+        <div class="owner-label">所有權人：${data['所有權人']}</div>
+        <div class="resident-label">居住人：${data['居住人']}</div>
+        ${carRow}
+        <div class="row">狀態：${data['驗退狀態']}</div>
+        <button class="toggle-btn">查看詳細</button>
+        <div class="details-wrap">
+          <div class="details">
+            <div class="row">裝修公司：${data['裝修公司']}</div>
+            <div class="row">裝修人電話：${data['裝修人電話']}</div>
+            <div class="row">開工日：${data['開工日']}</div>
+            <div class="row">預計完工：${data['預計完工']}</div>
+            <div class="row">驗退日期：${data['驗退日期']}</div>
+            <div class="row">門牌地址：${data['門牌地址']}</div>
+          </div>
+        </div>
+      `;
+      
+      unitCard.querySelector('.toggle-btn').addEventListener('click', function() {
+        const detailsWrap = this.nextElementSibling;
+        const isExpanded = detailsWrap.classList.toggle('expanded');
+        this.innerText = isExpanded ? '收合詳細' : '查看詳細';
+      });
+      
+      return unitCard;
+    }
+
+    // --- Management Modal Logic ---
+    const manageModal = document.getElementById('manageModal');
+    const unitSelect = document.getElementById('unitSelect');
+    const updateStatusDiv = document.getElementById('updateStatus');
+
+    function populateUnitSelect() {
+        unitSelect.innerHTML = '';
+        allUnitData.forEach(unit => {
+            const option = document.createElement('option');
+            option.value = unit.id;
+            option.textContent = unit.id;
+            unitSelect.appendChild(option);
+        });
+    }
+
+    async function handleUpdate(statusToSet) {
+        const unitId = unitSelect.value;
+        if (!unitId) {
+            alert('請先選擇一個戶別');
+            return;
+        }
+
+        const today = new Date();
+        const dateString = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+        const shortDateString = `${today.getMonth() + 1}月${today.getDate()}日`;
+
+        let updateData = {};
+        if (statusToSet === 'start') {
+            updateData = {
+                '施工狀態': '已開工',
+                '開工日': dateString,
+                '驗退狀態': '未驗收'
+            };
+        } else if (statusToSet === 'finish') {
+            updateData = {
+                '施工狀態': '已開工',
+                '驗退狀態': `已驗收 (${shortDateString})`,
+                '驗退日期': dateString
+            };
+        }
+
+        updateStatusDiv.textContent = '更新中...';
+        try {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'jiayuansongjiang-app';
+            const unitRef = doc(db, `artifacts/${appId}/public/data/units`, unitId);
+            await updateDoc(unitRef, updateData);
+            updateStatusDiv.textContent = `成功將 ${unitId} 更新狀態！`;
+            updateStatusDiv.style.color = 'green';
+        } catch (error) {
+            console.error("Error updating document: ", error);
+            updateStatusDiv.textContent = `更新失敗: ${error.message}`;
+            updateStatusDiv.style.color = 'red';
+        }
+        setTimeout(() => { updateStatusDiv.textContent = ''; }, 3000);
+    }
+
+    document.getElementById('manageBtn').addEventListener('click', () => { manageModal.style.display = 'flex'; });
+    document.getElementById('closeModalBtn').addEventListener('click', () => { manageModal.style.display = 'none'; });
+    document.getElementById('startWorkBtn').addEventListener('click', () => handleUpdate('start'));
+    document.getElementById('finishWorkBtn').addEventListener('click', () => handleUpdate('finish'));
+    
+    // --- 3D Background Effect ---
+    function threejsBackground() {
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000000, 0);
+        document.getElementById('three-bg').appendChild(renderer.domElement);
+
+        const particleCount = 1500;
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        for (let i = 0; i < particleCount; i++) {
+            positions.push((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20);
+        }
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        
+        const material = new THREE.PointsMaterial({
+            size: 0.05,
+            color: 0x88aaff,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+        camera.position.z = 10;
+
+        const mouse = new THREE.Vector2();
+        document.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            particles.rotation.x += 0.0001;
+            particles.rotation.y += 0.0002;
+            camera.position.x += (mouse.x * 2 - camera.position.x) * 0.02;
+            camera.position.y += (-mouse.y * 2 - camera.position.y) * 0.02;
+            camera.lookAt(scene.position);
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    }
+
+    // --- Page Load ---
+    window.addEventListener('load', () => {
+        initializeFirebase();
+        threejsBackground();
+    });
+    window.addEventListener('resize', drawFloors);
+
+  </script>
+</body>
+</html>
