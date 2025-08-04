@@ -169,8 +169,7 @@
 
     // --- Firebase and App Configuration ---
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'jiayuansongjiang-app';
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "YOUR_API_KEY", authDomain: "YOUR_AUTH_DOMAIN", projectId: "YOUR_PROJECT_ID" };
-
+    
     // --- Global Variables ---
     let db, auth;
     let allUnitData = []; // This will be populated from Firestore
@@ -222,21 +221,24 @@
     ];
 
     // --- Firebase Initialization and Data Handling ---
-    async function initializeAndLoadData() {
+    async function initializeFirebase() {
         try {
+            // Ensure config is provided by the environment before proceeding.
+            if (typeof __firebase_config === 'undefined') {
+                throw new Error("Firebase config is not defined by the environment.");
+            }
+            const firebaseConfig = JSON.parse(__firebase_config);
+
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
             
-            // Authenticate first, prioritizing the custom token provided by the environment.
+            // Authenticate first, then set up the listener.
             if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                console.log("使用提供的 token 進行認證...");
                 await signInWithCustomToken(auth, __initial_auth_token);
             } else {
-                console.log("未提供 token，進行匿名認證...");
                 await signInAnonymously(auth);
             }
-            console.log("認證成功，使用者 UID:", auth.currentUser.uid);
             
             // Now that we are authenticated, set up the real-time listener.
             setupSnapshotListener();
@@ -282,11 +284,9 @@
         });
         await batch.commit();
         console.log("初始資料寫入成功。");
-        // The onSnapshot listener will automatically pick up the newly seeded data.
     }
 
     function processAndRenderData() {
-        // Group all unit data by floor
         floorUnits = allUnitData.reduce((acc, unit) => {
             const floorMatch = unit["戶別"].match(/(\d+)/);
             if (floorMatch) {
@@ -297,7 +297,6 @@
             return acc;
         }, {});
         
-        // Render the UI
         drawFloors();
         showFloor(currentFloor);
     }
@@ -310,7 +309,7 @@
       if (!container || !overlay) return;
       overlay.innerHTML = '';
       let H = container.offsetHeight;
-      if (H === 0) { // If container is not rendered yet, wait a bit
+      if (H === 0) {
           setTimeout(drawFloors, 100);
           return;
       }
@@ -345,13 +344,12 @@
         label.innerText = f + 'F';
         overlay.appendChild(label);
       }
-      // Set initial active floor
       const activeZone = document.getElementById('zone' + currentFloor);
       if (activeZone) activeZone.classList.add('active');
     }
     
     function showFloor(floor) {
-      currentFloor = floor; // Update global state
+      currentFloor = floor;
       document.querySelectorAll('.floor-zone').forEach(z => z.classList.remove('active'));
       const activeZone = document.getElementById('zone' + floor);
       if (activeZone) activeZone.classList.add('active');
@@ -377,7 +375,7 @@
       unitCard.className = 'unit-card';
       
       let statusText = '';
-      let statusColor = '#bdbdbd'; // Default: 未施工
+      let statusColor = '#bdbdbd';
       
       const verificationStatus = data['驗退狀態'];
       const constructionStatus = data['施工狀態'];
@@ -385,13 +383,13 @@
       if (verificationStatus && verificationStatus.includes('已驗收')) {
           const dateMatch = verificationStatus.match(/\d+月\d+日/);
           statusText = dateMatch ? `已驗收(${dateMatch[0]})` : '已驗收';
-          statusColor = '#4caf50'; // Green
+          statusColor = '#4caf50';
       } else if (constructionStatus === '已開工') {
           statusText = '已開工';
-          statusColor = '#fb8c00'; // Orange
+          statusColor = '#fb8c00';
       } else {
           statusText = '未施工';
-          statusColor = '#bdbdbd'; // Gray
+          statusColor = '#bdbdbd';
       }
 
       const carRow = data['車位'] && data['車位'] !== '無車位' 
@@ -458,11 +456,11 @@
             updateData = {
                 '施工狀態': '已開工',
                 '開工日': dateString,
-                '驗退狀態': '未驗收' // Reset verification status
+                '驗退狀態': '未驗收'
             };
         } else if (statusToSet === 'finish') {
             updateData = {
-                '施工狀態': '已開工', // It must have been started to be finished
+                '施工狀態': '已開工',
                 '驗退狀態': `已驗收 (${shortDateString})`,
                 '驗退日期': dateString
             };
@@ -496,7 +494,7 @@
         renderer.setClearColor(0x000000, 0);
         document.getElementById('three-bg').appendChild(renderer.domElement);
 
-        const particleCount = 1500; // Reduced for performance
+        const particleCount = 1500;
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         for (let i = 0; i < particleCount; i++) {
@@ -542,7 +540,7 @@
 
     // --- Page Load ---
     window.addEventListener('DOMContentLoaded', () => {
-        initializeAndLoadData();
+        initializeFirebase();
         threejsBackground();
     });
     window.addEventListener('resize', drawFloors);
