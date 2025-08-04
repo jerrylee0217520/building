@@ -133,7 +133,7 @@
 
   <div id="floordatawrap" class="px-2 sm:px-4">
     <div class="floor-section">
-      <h3 class="floor-title" id="currentfloor">讀取資料中...</h3>
+      <h3 class="floor-title" id="currentfloor">等待環境設定...</h3>
       <div class="unit-row-wrap"><div class="unit-row" id="floorunits"></div></div>
     </div>
   </div>
@@ -168,7 +168,7 @@
     import { getFirestore, collection, doc, getDocs, setDoc, updateDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- Global Variables ---
-    let db, auth;
+    let db, auth, appId;
     let allUnitData = []; // This will be populated from Firestore
     let floorUnits = {};
     let currentFloor = '10'; // Default floor to show
@@ -220,26 +220,25 @@
     // --- Firebase Initialization and Data Handling ---
     async function initializeFirebase() {
         try {
-            // Ensure config is provided by the environment before proceeding.
-            if (typeof __firebase_config === 'undefined') {
-                document.getElementById('currentfloor').innerText = "Firebase 設定檔未定義";
-                console.error("Firebase config is not defined by the environment.");
-                return; // Stop execution if config is missing
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'jiayuansongjiang-app-fallback';
+            
+            const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+            if (!firebaseConfigStr) {
+                 throw new Error("Firebase config is not defined by the environment.");
             }
-            const firebaseConfig = JSON.parse(__firebase_config);
+            const firebaseConfig = JSON.parse(firebaseConfigStr);
 
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
             
-            // Authenticate first, then set up the listener.
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
+            const authToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+            if (authToken) {
+                await signInWithCustomToken(auth, authToken);
             } else {
                 await signInAnonymously(auth);
             }
             
-            // Now that we are authenticated, set up the real-time listener.
             setupSnapshotListener();
 
         } catch (error) {
@@ -249,7 +248,6 @@
     }
 
     function setupSnapshotListener() {
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'jiayuansongjiang-app';
         const unitsCollection = collection(db, `artifacts/${appId}/public/data/units`);
         onSnapshot(unitsCollection, (snapshot) => {
             if (snapshot.empty) {
@@ -257,7 +255,6 @@
                 seedInitialData(unitsCollection);
             } else {
                 allUnitData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // Sort data to ensure consistent order
                 allUnitData.sort((a, b) => {
                     const floorA_match = a['戶別'].match(/(\d+)/);
                     const floorB_match = b['戶別'].match(/(\d+)/);
@@ -468,7 +465,6 @@
 
         updateStatusDiv.textContent = '更新中...';
         try {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'jiayuansongjiang-app';
             const unitRef = doc(db, `artifacts/${appId}/public/data/units`, unitId);
             await updateDoc(unitRef, updateData);
             updateStatusDiv.textContent = `成功將 ${unitId} 更新狀態！`;
@@ -539,12 +535,42 @@
         });
     }
 
-    // --- Page Load ---
-    window.addEventListener('load', () => {
+    // --- App Start Logic ---
+    function startApp() {
         initializeFirebase();
         threejsBackground();
-    });
-    window.addEventListener('resize', drawFloors);
+        window.addEventListener('resize', drawFloors);
+    }
+
+    // This function polls for the existence of environment variables
+    // before starting the main application logic.
+    function waitForConfig() {
+        const checkInterval = 100; // check every 100ms
+        const timeout = 10000;     // 10 seconds timeout
+        let elapsedTime = 0;
+
+        const intervalId = setInterval(() => {
+            // Check for all required environment variables
+            if (typeof __firebase_config !== 'undefined' && 
+                typeof __initial_auth_token !== 'undefined' && 
+                typeof __app_id !== 'undefined') {
+                
+                clearInterval(intervalId);
+                startApp();
+
+            } else {
+                elapsedTime += checkInterval;
+                if (elapsedTime >= timeout) {
+                    clearInterval(intervalId);
+                    console.error("Firebase environment variables not available after 10 seconds.");
+                    document.getElementById('currentfloor').innerText = "環境設定載入超時";
+                }
+            }
+        }, checkInterval);
+    }
+    
+    // Use 'load' event to ensure all initial HTML is parsed before we start checking for variables.
+    window.addEventListener('load', waitForConfig);
 
   </script>
 </body>
