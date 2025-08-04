@@ -167,9 +167,6 @@
     import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, collection, doc, getDocs, setDoc, updateDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // --- Firebase and App Configuration ---
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'jiayuansongjiang-app';
-    
     // --- Global Variables ---
     let db, auth;
     let allUnitData = []; // This will be populated from Firestore
@@ -225,7 +222,9 @@
         try {
             // Ensure config is provided by the environment before proceeding.
             if (typeof __firebase_config === 'undefined') {
-                throw new Error("Firebase config is not defined by the environment.");
+                document.getElementById('currentfloor').innerText = "Firebase 設定檔未定義";
+                console.error("Firebase config is not defined by the environment.");
+                return; // Stop execution if config is missing
             }
             const firebaseConfig = JSON.parse(__firebase_config);
 
@@ -250,6 +249,7 @@
     }
 
     function setupSnapshotListener() {
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'jiayuansongjiang-app';
         const unitsCollection = collection(db, `artifacts/${appId}/public/data/units`);
         onSnapshot(unitsCollection, (snapshot) => {
             if (snapshot.empty) {
@@ -468,6 +468,7 @@
 
         updateStatusDiv.textContent = '更新中...';
         try {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'jiayuansongjiang-app';
             const unitRef = doc(db, `artifacts/${appId}/public/data/units`, unitId);
             await updateDoc(unitRef, updateData);
             updateStatusDiv.textContent = `成功將 ${unitId} 更新狀態！`;
@@ -539,7 +540,7 @@
     }
 
     // --- Page Load ---
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('load', () => {
         initializeFirebase();
         threejsBackground();
     });
