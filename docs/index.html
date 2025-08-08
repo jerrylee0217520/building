@@ -5,6 +5,16 @@
   <title>佳元松江社區 樓層互動資訊看板 (資料庫版)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
+  <!-- 
+    部署建議 (Deployment Suggestion):
+    目前使用 CDN 引入 Tailwind CSS 非常適合開發和測試。
+    但當您要將此專案部署到正式環境時，建議遵循官方的最佳實踐：
+    1. 安裝 Node.js 環境。
+    2. 透過 npm 安裝 Tailwind CSS。
+    3. 執行 build 指令，Tailwind 會自動分析您的 HTML 和 JS 檔案，
+       並產生一個只包含您有用到的樣式的極小化 CSS 檔案。
+    這樣可以大幅提升頁面載入速度。
+  -->
   <script src="https://cdn.tailwindcss.com"></script>
   
   <style>
@@ -32,7 +42,7 @@
     .bldg-bg-wrap {
       width: 96vw; max-width: 700px; aspect-ratio: 1536/1024;
       margin: 18px auto 0 auto;
-      background: url('https://storage.googleapis.com/gemini-prod-us-west1-assets/original_images/jiayuansongjiang_building2.png') no-repeat bottom center;
+      background: url('https://raw.githubusercontent.com/jerrylee0217520/building/main/docs/jiayuansongjiang_building2.png') no-repeat bottom center;
       background-size: contain; position: relative;
       box-shadow: 0 4px 25px rgba(0,0,0,0.1); border-radius: 18px;
     }
@@ -143,6 +153,7 @@
     </div>
   </div>
 
+  <!-- Login Modal -->
   <div id="loginModal" class="modal-backdrop">
     <div class="modal-content">
       <h3 class="text-xl font-bold mb-4">管理員登入</h3>
@@ -164,10 +175,25 @@
           </button>
         </div>
       </form>
+      
+      <!-- OR Separator -->
+      <div class="relative flex py-4 items-center">
+        <div class="flex-grow border-t border-gray-300"></div>
+        <span class="flex-shrink mx-4 text-gray-500 text-sm">或</span>
+        <div class="flex-grow border-t border-gray-300"></div>
+      </div>
+
+      <!-- Google Login Button -->
+      <button type="button" id="googleLoginBtn" class="w-full bg-white hover:bg-gray-100 text-gray-700 font-semibold py-2 px-4 border border-gray-300 rounded-lg shadow-sm flex items-center justify-center gap-3 transition-all">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" class="w-5 h-5">
+          使用 Google 帳號登入
+      </button>
+
       <div id="loginError" class="mt-4 text-center text-red-500"></div>
     </div>
   </div>
 
+  <!-- Management Modal -->
   <div id="manageModal" class="modal-backdrop">
     <div class="modal-content">
       <h3 class="text-xl font-bold mb-4">更新住戶施工狀態</h3>
@@ -192,12 +218,12 @@
 
   <script type="module">
     // Import Firebase modules
+    // ADDED: GoogleAuthProvider and signInWithPopup for Google Sign-In
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- DOM Element Caching ---
-    // Caching DOM elements to avoid repeated lookups, improving performance and readability.
     const threeBgContainer = document.getElementById('three-bg');
     const userInfoDiv = document.getElementById('userInfo');
     const manageBtn = document.getElementById('manageBtn');
@@ -215,6 +241,7 @@
     const passwordInput = document.getElementById('password');
     const closeLoginModalBtn = document.getElementById('closeLoginModalBtn');
     const loginErrorDiv = document.getElementById('loginError');
+    const googleLoginBtn = document.getElementById('googleLoginBtn'); // ADDED: Google Login Button
     const manageModal = document.getElementById('manageModal');
     const unitSelect = document.getElementById('unitSelect');
     const startWorkBtn = document.getElementById('startWorkBtn');
@@ -227,20 +254,10 @@
     let allUnitData = [];
     let floorUnits = {};
     let currentFloor = '10';
-    let listenerAttached = false; // Flag to ensure snapshot listener is attached only once
+    let listenerAttached = false; 
 
-    /* 安全性強化建議 (Security Enhancement Suggestion):
-      將管理員的 UID 直接寫在前端程式碼中，雖然方便但存在安全風險。
-      任何有權存取此檔案的人都能看到管理員的 UID。
-      更好的做法是使用 Firebase 的 "Custom Claims" (自訂宣告)。
-      您可以透過後端腳本 (如 Firebase Cloud Functions) 為管理員帳號加上一個 'admin: true' 的標籤。
-      然後，在前端和 Firestore 安全規則中，都檢查 request.auth.token.admin === true。
-      這樣做更安全、更具彈性，且不會在前端暴露任何敏感資訊。
-    */
     const ADMIN_UIDS = ['KcaxVmcqI3RzxWdhCl2dhVGPxti1'];
     
-
-    // --- Initial Data (Only used for seeding the database if it's empty) ---
     const initialUnitData = [
       { "戶別": "10A-10樓", "所有權人": "蔡政隆", "居住人": "尚未登記", "裝修公司": "質采室內裝修", "裝修人電話": "0289518898", "開工日": "2025/07/21", "預計完工": "2025-11-28", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "無車位", "門牌地址": "松江路252巷10號10樓" },
       { "戶別": "10B-10樓", "所有權人": "梁本郁", "居住人": "尚未登記", "裝修公司": "優舍  高宇賢", "裝修人電話": "0922311253", "開工日": "2025/06/23", "預計完工": "尚未登記", "驗退日期": "尚未登記", "驗退狀態": "未驗收", "施工狀態": "已開工", "車位": "B2-05", "門牌地址": "松江路252巷10號10樓之1" },
@@ -561,7 +578,10 @@
     }
     
     function setupEventListeners() {
-        loginBtn.addEventListener('click', () => { loginModal.style.display = 'flex'; });
+        loginBtn.addEventListener('click', () => { 
+            loginErrorDiv.textContent = ''; // Clear previous errors when opening
+            loginModal.style.display = 'flex'; 
+        });
         closeLoginModalBtn.addEventListener('click', () => { loginModal.style.display = 'none'; });
         
         logoutBtn.addEventListener('click', () => {
@@ -580,6 +600,28 @@
             } catch (error) {
                 console.error("Login failed:", error.code);
                 loginErrorDiv.textContent = '登入失敗，請檢查帳號或密碼。';
+            }
+        });
+
+        // ADDED: Event listener for the Google Sign-In button
+        googleLoginBtn.addEventListener('click', async () => {
+            loginErrorDiv.textContent = ''; // Clear previous errors
+            const provider = new GoogleAuthProvider();
+            try {
+                // This will open the Google Sign-In popup.
+                const result = await signInWithPopup(auth, provider);
+                console.log('Successfully signed in with Google:', result.user.email);
+                loginModal.style.display = 'none'; // Close modal on success
+            } catch (error) {
+                // Handle common errors
+                console.error('Google Sign-In Error:', error.code, error.message);
+                let errorMessage = 'Google 登入失敗，請稍後再試。';
+                if (error.code === 'auth/popup-closed-by-user') {
+                    errorMessage = '您已關閉 Google 登入視窗。';
+                } else if (error.code === 'auth/account-exists-with-different-credential') {
+                    errorMessage = '此 Google 帳號的 Email 已被用於其他登入方式。';
+                }
+                loginErrorDiv.textContent = errorMessage;
             }
         });
 
